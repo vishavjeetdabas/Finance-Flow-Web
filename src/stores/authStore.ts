@@ -4,6 +4,29 @@ import { authService } from '../services/authService';
 import { dataService } from '../services/dataService';
 import { AppUser, UserPreferences } from '../types';
 
+// Helper function to convert Firebase error codes to user-friendly messages
+const getAuthErrorMessage = (errorCode: string): string => {
+    switch (errorCode) {
+        case 'auth/invalid-credential':
+        case 'auth/user-not-found':
+            return 'No account found with this email. Please sign up first.';
+        case 'auth/wrong-password':
+            return 'Incorrect password. Please try again.';
+        case 'auth/invalid-email':
+            return 'Please enter a valid email address.';
+        case 'auth/email-already-in-use':
+            return 'This email is already registered. Please sign in instead.';
+        case 'auth/weak-password':
+            return 'Password is too weak. Please use at least 6 characters.';
+        case 'auth/too-many-requests':
+            return 'Too many failed attempts. Please try again later.';
+        case 'auth/network-request-failed':
+            return 'Network error. Please check your connection.';
+        default:
+            return 'An error occurred. Please try again.';
+    }
+};
+
 interface AuthState {
     user: AppUser | null;
     preferences: UserPreferences | null;
@@ -75,7 +98,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
             set({ user: appUser, preferences: defaultPrefs, isLoading: false });
         } catch (error: any) {
-            set({ error: error.message || 'Failed to sign up', isLoading: false });
+            const userFriendlyError = getAuthErrorMessage(error.code || error.message);
+            set({ error: userFriendlyError, isLoading: false });
             throw error;
         }
     },
@@ -94,7 +118,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
             // Load preferences after sign in
             await get().loadPreferences();
         } catch (error: any) {
-            set({ error: error.message || 'Failed to sign in', isLoading: false });
+            const userFriendlyError = getAuthErrorMessage(error.code || error.message);
+            set({ error: userFriendlyError, isLoading: false });
             throw error;
         }
     },

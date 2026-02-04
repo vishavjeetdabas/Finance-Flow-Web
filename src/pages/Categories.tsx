@@ -2,20 +2,25 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useCategoryStore } from '../stores/categoryStore';
+import { useTransactionStore } from '../stores/transactionStore';
 import { NavBar } from '../components/layout/NavBar';
-import { CategoryType } from '../types';
-import { Plus, Trash2, Edit2, Wallet } from 'lucide-react';
+import { CategoryType, Category } from '../types';
+import { Plus, Trash2, Edit2, Wallet, AlertTriangle, X } from 'lucide-react';
 import * as LucideIcons from 'lucide-react';
 
 export const Categories = () => {
     const navigate = useNavigate();
     const { user } = useAuthStore();
     const { categories, loadCategories, deleteCategory } = useCategoryStore();
+    const { transactions, loadTransactions } = useTransactionStore();
     const [selectedTab, setSelectedTab] = useState<'expense' | 'income'>('expense');
+    const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
+    const [transactionsUsingCategory, setTransactionsUsingCategory] = useState(0);
 
     useEffect(() => {
         if (user) {
             loadCategories(user.uid);
+            loadTransactions(user.uid);
         }
     }, [user]);
 
@@ -34,13 +39,22 @@ export const Categories = () => {
         return IconComponent ? <IconComponent size={size} /> : <Wallet size={size} />;
     };
 
-    const handleDelete = async (categoryId: string, e: React.MouseEvent) => {
+    const handleDeleteClick = (category: Category, e: React.MouseEvent) => {
         e.stopPropagation();
         if (!user) return;
-        if (!confirm('Are you sure you want to delete this category?')) return;
+
+        // Check if category is in use
+        const usageCount = transactions.filter(t => t.categoryId === category.id).length;
+        setTransactionsUsingCategory(usageCount);
+        setCategoryToDelete(category);
+    };
+
+    const confirmDelete = async () => {
+        if (!user || !categoryToDelete) return;
 
         try {
-            await deleteCategory(user.uid, categoryId);
+            await deleteCategory(user.uid, categoryToDelete.id);
+            setCategoryToDelete(null);
         } catch (err) {
             console.error('Failed to delete category:', err);
         }
@@ -114,7 +128,7 @@ export const Categories = () => {
                                     {!category.isDefault && (
                                         <button
                                             className="btn btn-icon btn-secondary"
-                                            onClick={(e) => handleDelete(category.id, e)}
+                                            onClick={(e) => handleDeleteClick(category, e)}
                                         >
                                             <Trash2 size={18} />
                                         </button>
@@ -125,6 +139,50 @@ export const Categories = () => {
                     </div>
                 )}
             </div>
+
+            {/* Delete Confirmation Modal */}
+            {categoryToDelete && (
+                <div className="modal-overlay" onClick={() => setCategoryToDelete(null)}>
+                    <div className="modal-content" onClick={e => e.stopPropagation()}>
+                        <div className="text-center">
+                            <div
+                                className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center"
+                                style={{ background: transactionsUsingCategory > 0 ? 'var(--color-warning)' : 'var(--color-error-bg)' }}
+                            >
+                                <AlertTriangle size={32} className={transactionsUsingCategory > 0 ? 'text-white' : 'text-error'} />
+                            </div>
+                            <h2 className="text-xl font-bold mb-2">Delete Category?</h2>
+
+                            {transactionsUsingCategory > 0 ? (
+                                <p className="text-secondary mb-6">
+                                    <span className="text-warning font-semibold">Warning:</span> This category is used in{' '}
+                                    <strong>{transactionsUsingCategory}</strong> transaction{transactionsUsingCategory > 1 ? 's' : ''}.
+                                    Deleting it will remove the category association from those transactions.
+                                </p>
+                            ) : (
+                                <p className="text-secondary mb-6">
+                                    Are you sure you want to delete "{categoryToDelete.name}"? This action cannot be undone.
+                                </p>
+                            )}
+
+                            <div className="flex gap-3">
+                                <button
+                                    className="btn btn-secondary flex-1"
+                                    onClick={() => setCategoryToDelete(null)}
+                                >
+                                    Cancel
+                                </button>
+                                <button
+                                    className="btn btn-danger flex-1"
+                                    onClick={confirmDelete}
+                                >
+                                    Delete
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             <NavBar />
         </div>

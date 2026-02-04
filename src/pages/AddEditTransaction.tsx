@@ -143,7 +143,8 @@ export const AddEditTransaction = () => {
         setError('');
 
         try {
-            const transactionData = {
+            // Build transaction data without undefined fields (Firebase rejects undefined)
+            const transactionData: Record<string, any> = {
                 amount: amountNum,
                 type: mode === TransactionMode.TRANSFER
                     ? TransactionType.TRANSFER
@@ -151,13 +152,19 @@ export const AddEditTransaction = () => {
                         ? TransactionType.INCOME
                         : TransactionType.EXPENSE,
                 walletId: selectedWalletId,
-                toWalletId: mode === TransactionMode.TRANSFER ? toWalletId : undefined,
-                categoryId: mode !== TransactionMode.TRANSFER ? selectedCategoryId : undefined,
-                note,
-                transferReason: mode === TransactionMode.TRANSFER ? transferReason : undefined,
+                note: note || '',
                 date: parseDateFromInput(date),
                 createdAt: Date.now()
             };
+
+            // Only add transfer-specific fields for transfers
+            if (mode === TransactionMode.TRANSFER) {
+                transactionData.toWalletId = toWalletId;
+                if (transferReason) transactionData.transferReason = transferReason;
+            } else {
+                // Only add categoryId for non-transfer transactions
+                transactionData.categoryId = selectedCategoryId;
+            }
 
             if (isEditMode) {
                 await updateTransaction(user.uid, id!, transactionData);

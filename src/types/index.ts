@@ -92,10 +92,19 @@ export interface MonthTotal {
     total: number;
 }
 
+// Theme mode
+export const ThemeMode = {
+    LIGHT: 'light',
+    DARK: 'dark',
+    SYSTEM: 'system'
+} as const;
+export type ThemeMode = typeof ThemeMode[keyof typeof ThemeMode];
+
 // User preferences
 export interface UserPreferences {
     onboardingCompleted: boolean;
-    darkMode: boolean;
+    darkMode: boolean; // Kept for backward compatibility
+    themeMode?: ThemeMode; // New theme mode setting
     currency: string;
 }
 

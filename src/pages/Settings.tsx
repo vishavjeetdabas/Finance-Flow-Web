@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useWalletStore } from '../stores/walletStore';
@@ -7,15 +7,18 @@ import { useTransactionStore } from '../stores/transactionStore';
 import { dataService } from '../services/dataService';
 import { NavBar } from '../components/layout/NavBar';
 import { supportedCurrencies } from '../utils/currencyFormatter';
+import { ThemeMode } from '../types';
 import {
     Moon,
     Sun,
+    Monitor,
     DollarSign,
     Trash2,
     LogOut,
     Wallet,
     FileText,
-    AlertTriangle
+    AlertTriangle,
+    ChevronDown
 } from 'lucide-react';
 
 export const Settings = () => {
@@ -28,14 +31,32 @@ export const Settings = () => {
     const [isResetting, setIsResetting] = useState(false);
     const [showResetConfirm, setShowResetConfirm] = useState(false);
 
-    const isDarkMode = preferences?.darkMode ?? true;
+    // Get current theme mode with fallback for backward compatibility
+    const themeMode: ThemeMode = preferences?.themeMode ?? (preferences?.darkMode ? 'dark' : 'light');
     const currency = preferences?.currency ?? 'INR';
 
-    const handleToggleDarkMode = async () => {
-        await updatePreferences({ darkMode: !isDarkMode });
-        // Apply theme
-        document.documentElement.setAttribute('data-theme', !isDarkMode ? 'dark' : 'light');
+    // Handle theme change with system preference detection
+    const handleThemeChange = async (mode: ThemeMode) => {
+        const isDark = mode === 'system'
+            ? window.matchMedia('(prefers-color-scheme: dark)').matches
+            : mode === 'dark';
+
+        await updatePreferences({ themeMode: mode, darkMode: isDark });
+        document.documentElement.setAttribute('data-theme', isDark ? 'dark' : 'light');
     };
+
+    // Listen for system theme changes when in system mode
+    useEffect(() => {
+        if (themeMode !== 'system') return;
+
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const handleChange = (e: MediaQueryListEvent) => {
+            document.documentElement.setAttribute('data-theme', e.matches ? 'dark' : 'light');
+        };
+
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
+    }, [themeMode]);
 
     const handleCurrencyChange = async (newCurrency: string) => {
         await updatePreferences({ currency: newCurrency });
@@ -97,30 +118,43 @@ export const Settings = () => {
                 <div className="section">
                     <h2 className="section-title">Appearance</h2>
                     <div className="card">
-                        <button
-                            className="flex items-center gap-4 w-full"
-                            onClick={handleToggleDarkMode}
-                        >
+                        <div className="flex items-center gap-4 mb-4">
                             <div
                                 className="w-10 h-10 rounded-lg flex items-center justify-center"
                                 style={{ background: 'var(--color-accent-light)' }}
                             >
-                                {isDarkMode ? <Moon size={20} className="text-accent" /> : <Sun size={20} className="text-accent" />}
+                                {themeMode === 'dark' ? <Moon size={20} className="text-accent" /> :
+                                    themeMode === 'light' ? <Sun size={20} className="text-accent" /> :
+                                        <Monitor size={20} className="text-accent" />}
                             </div>
-                            <div className="flex-1 text-left">
-                                <p className="font-medium">Dark Mode</p>
-                                <p className="text-sm text-secondary">{isDarkMode ? 'On' : 'Off'}</p>
+                            <div className="flex-1">
+                                <p className="font-medium">Theme</p>
+                                <p className="text-sm text-secondary">Choose your preferred theme</p>
                             </div>
-                            <div
-                                className="w-12 h-6 rounded-full p-1 transition-colors"
-                                style={{ background: isDarkMode ? 'var(--color-accent)' : 'var(--color-border)' }}
+                        </div>
+                        <div className="tabs">
+                            <button
+                                className={`tab ${themeMode === 'light' ? 'active' : ''}`}
+                                onClick={() => handleThemeChange('light')}
                             >
-                                <div
-                                    className="w-4 h-4 bg-white rounded-full transition-transform"
-                                    style={{ transform: isDarkMode ? 'translateX(24px)' : 'translateX(0)' }}
-                                />
-                            </div>
-                        </button>
+                                <Sun size={16} className="mr-1" />
+                                Light
+                            </button>
+                            <button
+                                className={`tab ${themeMode === 'dark' ? 'active' : ''}`}
+                                onClick={() => handleThemeChange('dark')}
+                            >
+                                <Moon size={16} className="mr-1" />
+                                Dark
+                            </button>
+                            <button
+                                className={`tab ${themeMode === 'system' ? 'active' : ''}`}
+                                onClick={() => handleThemeChange('system')}
+                            >
+                                <Monitor size={16} className="mr-1" />
+                                System
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -128,7 +162,7 @@ export const Settings = () => {
                 <div className="section">
                     <h2 className="section-title">Currency</h2>
                     <div className="card">
-                        <div className="flex items-center gap-4 mb-4">
+                        <div className="flex items-center gap-4">
                             <div
                                 className="w-10 h-10 rounded-lg flex items-center justify-center"
                                 style={{ background: 'var(--color-success-bg)' }}
@@ -137,27 +171,26 @@ export const Settings = () => {
                             </div>
                             <div className="flex-1">
                                 <p className="font-medium">Currency</p>
-                                <p className="text-sm text-secondary">Select your preferred currency</p>
+                                <p className="text-sm text-secondary">Symbol display only</p>
                             </div>
-                        </div>
-                        <div className="grid grid-cols-5 gap-2">
-                            {supportedCurrencies.map(curr => (
-                                <button
-                                    key={curr.code}
-                                    className={`p-3 rounded-lg text-center transition-all ${currency === curr.code
-                                            ? 'bg-accent text-white'
-                                            : 'bg-surface border border-border'
-                                        }`}
-                                    style={{
-                                        background: currency === curr.code ? 'var(--color-accent)' : 'var(--color-surface)',
-                                        borderColor: 'var(--color-border)'
-                                    }}
-                                    onClick={() => handleCurrencyChange(curr.code)}
+                            <div className="relative">
+                                <select
+                                    value={currency}
+                                    onChange={(e) => handleCurrencyChange(e.target.value)}
+                                    className="input pr-10 appearance-none cursor-pointer min-w-[120px]"
+                                    style={{ paddingRight: '2.5rem' }}
                                 >
-                                    <p className="font-bold">{curr.symbol}</p>
-                                    <p className="text-xs">{curr.code}</p>
-                                </button>
-                            ))}
+                                    {supportedCurrencies.map(curr => (
+                                        <option key={curr.code} value={curr.code}>
+                                            {curr.symbol} {curr.code}
+                                        </option>
+                                    ))}
+                                </select>
+                                <ChevronDown
+                                    size={18}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-secondary pointer-events-none"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
